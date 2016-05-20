@@ -1,0 +1,4 @@
+0001-Remove-Docker-service-watcher.patch
+0002-Remove-EC2Tag-service-watcher.patch
+0003-Make-the-haproxy-config-generator-optional.patch
+0004-Add-reload_command-option-to-file_output.patch

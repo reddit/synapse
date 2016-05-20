@@ -1,0 +1,393 @@
+From: Neil Williams <neil@reddit.com>
+Date: Fri, 20 May 2016 08:48:43 -0700
+Subject: Remove EC2Tag service watcher
+
+We don't need this and it saves us a dependency.
+---
+ README.md                                        |  23 ---
+ lib/synapse/service_watcher/ec2tag.rb            | 112 ------------
+ spec/lib/synapse/service_watcher_ec2tags_spec.rb | 209 -----------------------
+ synapse.gemspec                                  |   1 -
+ 4 files changed, 345 deletions(-)
+ delete mode 100644 lib/synapse/service_watcher/ec2tag.rb
+ delete mode 100644 spec/lib/synapse/service_watcher_ec2tags_spec.rb
+
+diff --git a/README.md b/README.md
+index 8651366..5cfd67c 100644
+--- a/README.md
++++ b/README.md
+@@ -180,29 +180,6 @@ If the `method` is `serverset` then we expect to find Finagle ServerSet
+ (also used by [Aurora](https://github.com/apache/aurora/blob/master/docs/user-guide.md#service-discovery)) registrations with a `serviceEndpoint` and optionally one or more `additionalEndpoints`.
+ The Synapse `name` will be automatically deduced from `shard` if present.
+ 
+-##### AWS EC2 tags #####
+-
+-This watcher retrieves a list of Amazon EC2 instances that have a tag
+-with particular value using the AWS API.
+-It takes the following options:
+-
+-* `method`: ec2tag
+-* `tag_name`: the name of the tag to inspect. As per the AWS docs,
+-  this is case-sensitive.
+-* `tag_value`: the value to match on. Case-sensitive.
+-
+-Additionally, you MUST supply `server_port_override` in the `haproxy`
+-section of the configuration as this watcher does not know which port
+-the backend service is listening on.
+-
+-The following options are optional, provided the well-known `AWS_`
+-environment variables shown are set. If supplied, these options will
+-be used in preference to the `AWS_` environment variables.
+-
+-* `aws_access_key_id`: AWS key or set `AWS_ACCESS_KEY_ID` in the environment.
+-* `aws_secret_access_key`: AWS secret key or set `AWS_SECRET_ACCESS_KEY` in the environment.
+-* `aws_region`: AWS region (i.e. `us-east-1`) or set `AWS_REGION` in the environment.
+-
+ ##### Marathon #####
+ 
+ This watcher polls the Marathon API and retrieves a list of instances for a
+diff --git a/lib/synapse/service_watcher/ec2tag.rb b/lib/synapse/service_watcher/ec2tag.rb
+deleted file mode 100644
+index 9df7749..0000000
+--- a/lib/synapse/service_watcher/ec2tag.rb
++++ /dev/null
+@@ -1,112 +0,0 @@
+-require 'synapse/service_watcher/base'
+-require 'aws-sdk'
+-
+-class Synapse::ServiceWatcher
+-  class Ec2tagWatcher < BaseWatcher
+-
+-    attr_reader :check_interval
+-
+-    def start
+-      region = @discovery['aws_region'] || ENV['AWS_REGION']
+-      log.info "Connecting to EC2 region: #{region}"
+-
+-      @ec2 = AWS::EC2.new(
+-        region:            region,
+-        access_key_id:     @discovery['aws_access_key_id']     || ENV['AWS_ACCESS_KEY_ID'],
+-        secret_access_key: @discovery['aws_secret_access_key'] || ENV['AWS_SECRET_ACCESS_KEY'] )
+-
+-      @check_interval = @discovery['check_interval'] || 15.0
+-
+-      log.info "synapse: ec2tag watcher looking for instances " +
+-        "tagged with #{@discovery['tag_name']}=#{@discovery['tag_value']}"
+-
+-      @watcher = Thread.new { watch }
+-    end
+-
+-    private
+-
+-    def validate_discovery_opts
+-      # Required, via options only.
+-      raise ArgumentError, "invalid discovery method #{@discovery['method']}" \
+-        unless @discovery['method'] == 'ec2tag'
+-      raise ArgumentError, "aws tag name is required for service #{@name}" \
+-        unless @discovery['tag_name']
+-      raise ArgumentError, "aws tag value required for service #{@name}" \
+-        unless @discovery['tag_value']
+-
+-      # As we're only looking up instances with hostnames/IPs, need to
+-      # be explicitly told which port the service we're balancing for listens on.
+-      unless @haproxy['server_port_override']
+-        raise ArgumentError,
+-          "Missing server_port_override for service #{@name} - which port are backends listening on?"
+-      end
+-
+-      unless @haproxy['server_port_override'].to_s.match(/^\d+$/)
+-        raise ArgumentError, "Invalid server_port_override value"
+-      end
+-
+-      # aws region is optional in the SDK, aws will use a default value if not provided
+-      unless @discovery['aws_region'] || ENV['AWS_REGION']
+-        log.info "aws region is missing, will use default"
+-      end
+-      # access key id & secret are optional, might be using IAM instance profile for credentials
+-      unless ((@discovery['aws_access_key_id'] || ENV['aws_access_key_id']) \
+-              && (@discovery['aws_secret_access_key'] || ENV['aws_secret_access_key'] ))
+-        log.info "aws access key id & secret not set in config or env variables for service #{name}, will attempt to use IAM instance profile"
+-      end
+-    end
+-
+-    def watch
+-      until @should_exit
+-        begin
+-          start = Time.now
+-          if set_backends(discover_instances)
+-            log.info "synapse: ec2tag watcher backends have changed."
+-          end
+-        rescue Exception => e
+-          log.warn "synapse: error in ec2tag watcher thread: #{e.inspect}"
+-          log.warn e.backtrace
+-        ensure
+-          sleep_until_next_check(start)
+-        end
+-      end
+-
+-      log.info "synapse: ec2tag watcher exited successfully"
+-    end
+-
+-    def sleep_until_next_check(start_time)
+-      sleep_time = check_interval - (Time.now - start_time)
+-      if sleep_time > 0.0
+-        sleep(sleep_time)
+-      end
+-    end
+-
+-    def discover_instances
+-      AWS.memoize do
+-        instances = instances_with_tags(@discovery['tag_name'], @discovery['tag_value'])
+-
+-        new_backends = []
+-
+-        # choice of private_dns_name, dns_name, private_ip_address or
+-        # ip_address, for now, just stick with the private fields.
+-        instances.each do |instance|
+-          new_backends << {
+-            'name' => instance.private_dns_name,
+-            'host' => instance.private_ip_address,
+-            'port' => @haproxy['server_port_override'],
+-          }
+-        end
+-
+-        new_backends
+-      end
+-    end
+-
+-    def instances_with_tags(tag_name, tag_value)
+-      @ec2.instances
+-        .tagged(tag_name)
+-        .tagged_values(tag_value)
+-        .select { |i| i.status == :running }
+-    end
+-  end
+-end
+-
+diff --git a/spec/lib/synapse/service_watcher_ec2tags_spec.rb b/spec/lib/synapse/service_watcher_ec2tags_spec.rb
+deleted file mode 100644
+index bbcf15b..0000000
+--- a/spec/lib/synapse/service_watcher_ec2tags_spec.rb
++++ /dev/null
+@@ -1,209 +0,0 @@
+-require 'spec_helper'
+-require 'synapse/service_watcher/ec2tag'
+-require 'logging'
+-
+-class Synapse::ServiceWatcher::Ec2tagWatcher
+-  attr_reader   :synapse
+-  attr_accessor :default_servers, :ec2
+-end
+-
+-class FakeAWSInstance
+-  def ip_address
+-    @ip_address ||= fake_address
+-  end
+-
+-  def private_ip_address
+-    @private_ip_address ||= fake_address
+-  end
+-
+-  def dns_name
+-    @dns_name ||= "ec2-#{ip_address.gsub('.', '-')}.eu-test-1.compute.amazonaws.com"
+-  end
+-
+-  def private_dns_name
+-    @private_dns_name ||= "ip-#{private_ip_address.gsub('.', '-')}.eu-test-1.compute.internal"
+-  end
+-
+-  def fake_address
+-    4.times.map { (0...254).to_a.shuffle.pop.to_s }.join('.')
+-  end
+-end
+-
+-describe Synapse::ServiceWatcher::Ec2tagWatcher do
+-  let(:mock_synapse) { double }
+-  subject { Synapse::ServiceWatcher::Ec2tagWatcher.new(basic_config, mock_synapse) }
+-
+-  let(:basic_config) do
+-    { 'name' => 'ec2tagtest',
+-      'haproxy' => {
+-        'port' => '8080',
+-        'server_port_override' => '8081'
+-      },
+-      "discovery" => {
+-        "method" => "ec2tag",
+-        "tag_name"   => "fuNNy_tag_name",
+-        "tag_value"  => "funkyTagValue",
+-        "aws_region" => 'eu-test-1',
+-        "aws_access_key_id" => 'ABCDEFGHIJKLMNOPQRSTU',
+-        "aws_secret_access_key" => 'verylongfakekeythatireallyneedtogenerate'
+-      }
+-    }
+-  end
+-
+-  before(:all) do
+-    # Clean up ENV so we don't inherit any actual AWS config.
+-    %w[AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION].each { |k| ENV.delete(k) }
+-  end
+-
+-  before(:each) do
+-    # https://ruby.awsblog.com/post/Tx2SU6TYJWQQLC3/Stubbing-AWS-Responses
+-    # always returns empty results, so data may have to be faked.
+-    AWS.stub!
+-  end
+-
+-  def remove_discovery_arg(name)
+-    args = basic_config.clone
+-    args['discovery'].delete name
+-    args
+-  end
+-
+-  def remove_haproxy_arg(name)
+-    args = basic_config.clone
+-    args['haproxy'].delete name
+-    args
+-  end
+-
+-  def munge_haproxy_arg(name, new_value)
+-    args = basic_config.clone
+-    args['haproxy'][name] = new_value
+-    args
+-  end
+-
+-  describe '#new' do
+-    let(:args) { basic_config }
+-
+-    it 'instantiates cleanly with basic config' do
+-      expect { subject }.not_to raise_error
+-    end
+-
+-    context 'when missing arguments' do
+-      it 'does not break if aws_region is missing' do
+-        expect {
+-          Synapse::ServiceWatcher::Ec2tagWatcher.new(remove_discovery_arg('aws_region'), mock_synapse)
+-        }.not_to raise_error
+-      end
+-      it 'does not break if aws_access_key_id is missing' do
+-        expect {
+-          Synapse::ServiceWatcher::Ec2tagWatcher.new(remove_discovery_arg('aws_access_key_id'), mock_synapse)
+-        }.not_to raise_error
+-      end
+-      it 'does not break if aws_secret_access_key is missing' do
+-        expect {
+-          Synapse::ServiceWatcher::Ec2tagWatcher.new(remove_discovery_arg('aws_secret_access_key'), mock_synapse)
+-        }.not_to raise_error
+-      end
+-      it 'complains if server_port_override is missing' do
+-        expect {
+-          Synapse::ServiceWatcher::Ec2tagWatcher.new(remove_haproxy_arg('server_port_override'), mock_synapse)
+-        }.to raise_error(ArgumentError, /Missing server_port_override/)
+-      end
+-    end
+-
+-    context 'invalid data' do
+-      it 'complains if the haproxy server_port_override is not a number' do
+-          expect {
+-            Synapse::ServiceWatcher::Ec2tagWatcher.new(munge_haproxy_arg('server_port_override', '80deadbeef'), mock_synapse)
+-          }.to raise_error(ArgumentError, /Invalid server_port_override/)
+-      end
+-    end
+-  end
+-
+-  context "instance discovery" do
+-    let(:instance1) { FakeAWSInstance.new }
+-    let(:instance2) { FakeAWSInstance.new }
+-
+-    context 'watch' do
+-
+-      it 'discovers instances, configures backends, then sleeps' do
+-        fake_backends = [1,2,3]
+-        expect(subject).to receive(:discover_instances).and_return(fake_backends)
+-        expect(subject).to receive(:set_backends).with(fake_backends) { subject.stop }
+-        expect(subject).to receive(:sleep_until_next_check)
+-        subject.send(:watch)
+-      end
+-
+-      it 'sleeps until next check if discover_instances fails' do
+-        expect(subject).to receive(:discover_instances) do
+-          subject.stop
+-          raise "discover failed"
+-        end
+-        expect(subject).to receive(:sleep_until_next_check)
+-        subject.send(:watch)
+-      end
+-
+-    end
+-
+-    context 'using the AWS API' do
+-      let(:ec2_client) { double('AWS::EC2') }
+-      let(:instance_collection) { double('AWS::EC2::InstanceCollection') }
+-
+-      before do
+-        subject.ec2 = ec2_client
+-      end
+-
+-      it 'fetches instances and filter instances' do
+-        # Unfortunately there's quite a bit going on here, but this is
+-        # a chained call to get then filter EC2 instances, which is
+-        # done remotely; breaking into separate calls would result in
+-        # unnecessary data being retrieved.
+-
+-        expect(subject.ec2).to receive(:instances).and_return(instance_collection)
+-
+-        expect(instance_collection).to receive(:tagged).with('foo').and_return(instance_collection)
+-        expect(instance_collection).to receive(:tagged_values).with('bar').and_return(instance_collection)
+-        expect(instance_collection).to receive(:select).and_return(instance_collection)
+-
+-        subject.send(:instances_with_tags, 'foo', 'bar')
+-      end
+-    end
+-
+-    context 'returned backend data structure' do
+-      before do
+-        allow(subject).to receive(:instances_with_tags).and_return([instance1, instance2])
+-      end
+-
+-      let(:backends) { subject.send(:discover_instances) }
+-
+-      it 'returns an Array of backend name/host/port Hashes' do
+-        required_keys = %w[name host port]
+-        expect(
+-          backends.all?{|b| required_keys.each{|k| b.has_key?(k)}}
+-        ).to be_truthy
+-      end
+-
+-      it 'sets the backend port to server_port_override for all backends' do
+-        backends = subject.send(:discover_instances)
+-        expect(
+-          backends.all? { |b| b['port'] == basic_config['haproxy']['server_port_override'] }
+-        ).to be_truthy
+-      end
+-    end
+-
+-    context 'returned instance fields' do
+-      before do
+-        allow(subject).to receive(:instances_with_tags).and_return([instance1])
+-      end
+-
+-      let(:backend) { subject.send(:discover_instances).pop }
+-
+-      it "returns an instance's private IP as the hostname" do
+-        expect( backend['host'] ).to eq instance1.private_ip_address
+-      end
+-
+-      it "returns an instance's private hostname as the server name" do
+-        expect( backend['name'] ).to eq instance1.private_dns_name
+-      end
+-    end
+-  end
+-end
+-
+diff --git a/synapse.gemspec b/synapse.gemspec
+index d7aff8d..f98bc87 100644
+--- a/synapse.gemspec
++++ b/synapse.gemspec
+@@ -16,7 +16,6 @@ Gem::Specification.new do |gem|
+   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
+   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
+ 
+-  gem.add_runtime_dependency "aws-sdk", "~> 1.39"
+   gem.add_runtime_dependency "zk", "~> 1.9.4"
+   gem.add_runtime_dependency "logging", "~> 1.8"
+ 

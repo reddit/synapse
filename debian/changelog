@@ -1,0 +1,5 @@
+synapse (0.13.1-1reddit1) trusty; urgency=medium
+
+  * Initial release
+
+ -- Neil Williams <neil@reddit.com>  Thu, 19 May 2016 23:51:02 +0000

@@ -1,0 +1,21 @@
+Source: synapse
+Section: net
+Priority: optional
+Maintainer: Neil Williams <neil@reddit.com>
+Build-Depends: debhelper (>= 7.0.50~), gem2deb (>= 0.6.1~)
+Standards-Version: 3.9.5
+Vcs-Git: git://github.com/reddit/synapse.git
+Vcs-Browser: https://github.com/reddit/synapse
+Homepage: https://github.com/airbnb/synapse
+XS-Ruby-Versions: all
+
+Package: synapse
+Architecture: all
+XB-Ruby-Versions: ${ruby:Versions}
+Depends: ${shlibs:Depends}, ${misc:Depends}, ruby, ruby-json, ruby-zk, ruby-logging
+Description: Service discovery daemon
+ Synapse solves the problem of automated fail-over in the cloud, where failover
+ via network re-configuration is impossible.
+ .
+ The end result is the ability to connect internal services together in a
+ scalable, fault-tolerant way.

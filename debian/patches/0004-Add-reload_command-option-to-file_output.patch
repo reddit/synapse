@@ -1,0 +1,72 @@
+From: Neil Williams <neil@reddit.com>
+Date: Sat, 21 May 2016 11:07:48 -0700
+Subject: Add reload_command option to file_output
+
+This allows an arbitrary command to be run when the JSON manifests are
+updated. For example, we could restart a service that uses the manifest
+or we could transform it to another format.
+---
+ README.md                  |  3 +++
+ lib/synapse/file_output.rb | 23 +++++++++++++++++++++--
+ 2 files changed, 24 insertions(+), 2 deletions(-)
+
+diff --git a/README.md b/README.md
+index 5cfd67c..bb5d193 100644
+--- a/README.md
++++ b/README.md
+@@ -269,6 +269,9 @@ use discovery information but not go through HAProxy.
+ 
+ * `output_directory`: the path to a directory on disk that service registrations
+ should be written to.
++* `reload_command`: a command to run after the JSON file is updated. the
++%{service_name} and %{service_json} template parameters will be replaced with
++the name of the service and the path to the json file respectively.
+ 
+ 
+ ### HAProxy shared HTTP Frontend ###
+diff --git a/lib/synapse/file_output.rb b/lib/synapse/file_output.rb
+index 820f9f4..23dbe21 100644
+--- a/lib/synapse/file_output.rb
++++ b/lib/synapse/file_output.rb
+@@ -26,13 +26,18 @@ module Synapse
+ 
+     def update_config(watchers)
+       watchers.each do |watcher|
+-        write_backends_to_file(watcher.name, watcher.backends)
++        restart_required = write_backends_to_file(watcher.name, watcher.backends)
++        restart(watcher.name) if restart_required
+       end
+       clean_old_watchers(watchers)
+     end
+ 
++    def path_for_service(service_name)
++      File.join(@opts['output_directory'], "#{service_name}.json")
++    end
++
+     def write_backends_to_file(service_name, new_backends)
+-      data_path = File.join(@opts['output_directory'], "#{service_name}.json")
++      data_path = path_for_service(service_name)
+       begin
+         old_backends = JSON.load(File.read(data_path))
+       rescue Errno::ENOENT
+@@ -54,6 +59,20 @@ module Synapse
+       end
+     end
+ 
++    def restart(service_name)
++      if @opts.has_key?("reload_command")
++        cmd = format(@opts["reload_command"],
++          :service_name => service_name,
++          :service_json => path_for_service(service_name),
++        )
++        res = `#{cmd}`.chomp
++        unless $?.success?
++          log.error "failed to reload after file_output via #{cmd}: #{res}"
++          return
++        end
++      end
++    end
++
+     def clean_old_watchers(current_watchers)
+       # Cleanup old services that Synapse no longer manages
+       FileUtils.cd(@opts['output_directory']) do
