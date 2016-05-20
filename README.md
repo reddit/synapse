@@ -180,17 +180,6 @@ If the `method` is `serverset` then we expect to find Finagle ServerSet
 (also used by [Aurora](https://github.com/apache/aurora/blob/master/docs/user-guide.md#service-discovery)) registrations with a `serviceEndpoint` and optionally one or more `additionalEndpoints`.
 The Synapse `name` will be automatically deduced from `shard` if present.
 
-##### Docker #####
-
-This watcher retrieves a list of [docker](http://www.docker.io/) containers via docker's [HTTP API](http://docs.docker.io/en/latest/reference/api/docker_remote_api/).
-It takes the following options:
-
-* `method`: docker
-* `servers`: a list of servers running docker as a daemon. Format is `{"name":"...", "host": "..."[, port: 4243]}`
-* `image_name`: find containers running this image
-* `container_port`: find containers forwarding this port
-* `check_interval`: how often to poll the docker API on each server. Default is 15s.
-
 ##### AWS EC2 tags #####
 
 This watcher retrieves a list of Amazon EC2 instances that have a tag
