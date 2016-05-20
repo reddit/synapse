@@ -180,29 +180,6 @@ If the `method` is `serverset` then we expect to find Finagle ServerSet
 (also used by [Aurora](https://github.com/apache/aurora/blob/master/docs/user-guide.md#service-discovery)) registrations with a `serviceEndpoint` and optionally one or more `additionalEndpoints`.
 The Synapse `name` will be automatically deduced from `shard` if present.
 
-##### AWS EC2 tags #####
-
-This watcher retrieves a list of Amazon EC2 instances that have a tag
-with particular value using the AWS API.
-It takes the following options:
-
-* `method`: ec2tag
-* `tag_name`: the name of the tag to inspect. As per the AWS docs,
-  this is case-sensitive.
-* `tag_value`: the value to match on. Case-sensitive.
-
-Additionally, you MUST supply `server_port_override` in the `haproxy`
-section of the configuration as this watcher does not know which port
-the backend service is listening on.
-
-The following options are optional, provided the well-known `AWS_`
-environment variables shown are set. If supplied, these options will
-be used in preference to the `AWS_` environment variables.
-
-* `aws_access_key_id`: AWS key or set `AWS_ACCESS_KEY_ID` in the environment.
-* `aws_secret_access_key`: AWS secret key or set `AWS_SECRET_ACCESS_KEY` in the environment.
-* `aws_region`: AWS region (i.e. `us-east-1`) or set `AWS_REGION` in the environment.
-
 ##### Marathon #####
 
 This watcher polls the Marathon API and retrieves a list of instances for a
