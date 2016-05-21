@@ -25,6 +25,20 @@ module Synapse
       raise "specify a list of services to connect in the config" unless opts.has_key?('services')
       @service_watchers = create_service_watchers(opts['services'])
 
+      # create objects that need to be notified of service changes
+      @config_generators = []
+
+      # possibly create an haproxy config generator
+      if opts.has_key?('haproxy')
+        @config_generators << Haproxy.new(opts['haproxy'])
+      end
+
+      # possibly create a file manifestation for services that do not
+      # want to communicate via haproxy, e.g. cassandra
+      if opts.has_key?('file_output')
+        @config_generators << FileOutput.new(opts['file_output'])
+      end
+
       # configuration is initially enabled to configure on first loop
       @config_updated = true
 
