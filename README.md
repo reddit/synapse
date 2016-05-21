@@ -269,6 +269,9 @@ use discovery information but not go through HAProxy.
 
 * `output_directory`: the path to a directory on disk that service registrations
 should be written to.
+* `reload_command`: a command to run after the JSON file is updated. the
+%{service_name} and %{service_json} template parameters will be replaced with
+the name of the service and the path to the json file respectively.
 
 
 ### HAProxy shared HTTP Frontend ###
