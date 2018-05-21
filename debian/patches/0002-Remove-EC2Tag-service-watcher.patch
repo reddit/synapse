@@ -5,18 +5,18 @@ Subject: Remove EC2Tag service watcher
 We don't need this and it saves us a dependency.
 ---
  README.md                                        |  23 ---
- lib/synapse/service_watcher/ec2tag.rb            | 112 ------------
- spec/lib/synapse/service_watcher_ec2tags_spec.rb | 209 -----------------------
+ lib/synapse/service_watcher/ec2tag.rb            | 107 ----------
+ spec/lib/synapse/service_watcher_ec2tags_spec.rb | 243 -----------------------
  synapse.gemspec                                  |   1 -
- 4 files changed, 345 deletions(-)
+ 4 files changed, 374 deletions(-)
  delete mode 100644 lib/synapse/service_watcher/ec2tag.rb
  delete mode 100644 spec/lib/synapse/service_watcher_ec2tags_spec.rb
 
 diff --git a/README.md b/README.md
-index 8651366..5cfd67c 100644
+index 154ecc0..b399692 100644
 --- a/README.md
 +++ b/README.md
-@@ -180,29 +180,6 @@ If the `method` is `serverset` then we expect to find Finagle ServerSet
+@@ -250,29 +250,6 @@ If the `method` is `serverset` then we expect to find Finagle ServerSet
  (also used by [Aurora](https://github.com/apache/aurora/blob/master/docs/user-guide.md#service-discovery)) registrations with a `serviceEndpoint` and optionally one or more `additionalEndpoints`.
  The Synapse `name` will be automatically deduced from `shard` if present.
  
@@ -31,9 +31,9 @@ index 8651366..5cfd67c 100644
 -  this is case-sensitive.
 -* `tag_value`: the value to match on. Case-sensitive.
 -
--Additionally, you MUST supply `server_port_override` in the `haproxy`
--section of the configuration as this watcher does not know which port
--the backend service is listening on.
+-Additionally, you MUST supply [`backend_port_override`](#backend_port_override)
+-in the service configuration as this watcher does not know which port the
+-backend service is listening on.
 -
 -The following options are optional, provided the well-known `AWS_`
 -environment variables shown are set. If supplied, these options will
@@ -48,10 +48,10 @@ index 8651366..5cfd67c 100644
  This watcher polls the Marathon API and retrieves a list of instances for a
 diff --git a/lib/synapse/service_watcher/ec2tag.rb b/lib/synapse/service_watcher/ec2tag.rb
 deleted file mode 100644
-index 9df7749..0000000
+index c14cac0..0000000
 --- a/lib/synapse/service_watcher/ec2tag.rb
 +++ /dev/null
-@@ -1,112 +0,0 @@
+@@ -1,107 +0,0 @@
 -require 'synapse/service_watcher/base'
 -require 'aws-sdk'
 -
@@ -90,13 +90,9 @@ index 9df7749..0000000
 -
 -      # As we're only looking up instances with hostnames/IPs, need to
 -      # be explicitly told which port the service we're balancing for listens on.
--      unless @haproxy['server_port_override']
+-      unless @backend_port_override
 -        raise ArgumentError,
--          "Missing server_port_override for service #{@name} - which port are backends listening on?"
--      end
--
--      unless @haproxy['server_port_override'].to_s.match(/^\d+$/)
--        raise ArgumentError, "Invalid server_port_override value"
+-          "Missing backend_port_override for service #{@name} - which port are backends listening on?"
 -      end
 -
 -      # aws region is optional in the SDK, aws will use a default value if not provided
@@ -147,7 +143,6 @@ index 9df7749..0000000
 -          new_backends << {
 -            'name' => instance.private_dns_name,
 -            'host' => instance.private_ip_address,
--            'port' => @haproxy['server_port_override'],
 -          }
 -        end
 -
@@ -166,10 +161,10 @@ index 9df7749..0000000
 -
 diff --git a/spec/lib/synapse/service_watcher_ec2tags_spec.rb b/spec/lib/synapse/service_watcher_ec2tags_spec.rb
 deleted file mode 100644
-index bbcf15b..0000000
+index ef17d53..0000000
 --- a/spec/lib/synapse/service_watcher_ec2tags_spec.rb
 +++ /dev/null
-@@ -1,209 +0,0 @@
+@@ -1,243 +0,0 @@
 -require 'spec_helper'
 -require 'synapse/service_watcher/ec2tag'
 -require 'logging'
@@ -202,7 +197,15 @@ index bbcf15b..0000000
 -end
 -
 -describe Synapse::ServiceWatcher::Ec2tagWatcher do
--  let(:mock_synapse) { double }
+-  let(:mock_synapse) do
+-    mock_synapse = instance_double(Synapse::Synapse)
+-    mockgenerator = Synapse::ConfigGenerator::BaseGenerator.new()
+-    allow(mock_synapse).to receive(:available_generators).and_return({
+-      'haproxy' => mockgenerator
+-    })
+-    allow(mock_synapse).to receive(:reconfigure!).and_return(true)
+-    mock_synapse
+-  end
 -  subject { Synapse::ServiceWatcher::Ec2tagWatcher.new(basic_config, mock_synapse) }
 -
 -  let(:basic_config) do
@@ -251,6 +254,12 @@ index bbcf15b..0000000
 -    args
 -  end
 -
+-  def munge_arg(name, new_value)
+-    args = basic_config.clone
+-    args[name] = new_value
+-    args
+-  end
+-
 -  describe '#new' do
 -    let(:args) { basic_config }
 -
@@ -274,19 +283,33 @@ index bbcf15b..0000000
 -          Synapse::ServiceWatcher::Ec2tagWatcher.new(remove_discovery_arg('aws_secret_access_key'), mock_synapse)
 -        }.not_to raise_error
 -      end
--      it 'complains if server_port_override is missing' do
+-      it 'complains if server_port_override and backend_port_override are missing' do
 -        expect {
 -          Synapse::ServiceWatcher::Ec2tagWatcher.new(remove_haproxy_arg('server_port_override'), mock_synapse)
--        }.to raise_error(ArgumentError, /Missing server_port_override/)
+-        }.to raise_error(ArgumentError, /Missing backend_port_override/)
+-      end
+-      it 'does not break if backend_port_override is set' do
+-        expect {
+-          Synapse::ServiceWatcher::Ec2tagWatcher.new(munge_arg('backend_port_override', 1234), mock_synapse)
+-        }.not_to raise_error
 -      end
 -    end
 -
 -    context 'invalid data' do
 -      it 'complains if the haproxy server_port_override is not a number' do
--          expect {
--            Synapse::ServiceWatcher::Ec2tagWatcher.new(munge_haproxy_arg('server_port_override', '80deadbeef'), mock_synapse)
--          }.to raise_error(ArgumentError, /Invalid server_port_override/)
+-        expect {
+-          Synapse::ServiceWatcher::Ec2tagWatcher.new(munge_haproxy_arg('server_port_override', '80deadbeef'), mock_synapse)
+-        }.to raise_error(ArgumentError, /Invalid backend_port_override/)
 -      end
+-      it 'complains if the backend_port_override is not a number' do
+-        config = remove_haproxy_arg('server_port_override')
+-        expect(config['haproxy']['backend_port_override']).to eq(nil)
+-        config = munge_arg('backend_port_override', '80deadbeef')
+-        expect {
+-          Synapse::ServiceWatcher::Ec2tagWatcher.new(config, mock_synapse)
+-        }.to raise_error(ArgumentError, /Invalid backend_port_override/)
+-      end
+-
 -    end
 -  end
 -
@@ -354,9 +377,15 @@ index bbcf15b..0000000
 -      end
 -
 -      it 'sets the backend port to server_port_override for all backends' do
--        backends = subject.send(:discover_instances)
+-        discovered_backends = subject.send(:discover_instances)
 -        expect(
--          backends.all? { |b| b['port'] == basic_config['haproxy']['server_port_override'] }
+-          discovered_backends.all? { |b| b['port'].nil? }
+-        ).to be_truthy
+-
+-        # Set backends is responsible for actually populating ports
+-        expect(subject.send(:set_backends, discovered_backends)).to eq(true)
+-        expect(
+-          subject.backends.all? { |b| b['port'] == basic_config['haproxy']['server_port_override'] }
 -        ).to be_truthy
 -      end
 -    end
@@ -380,14 +409,14 @@ index bbcf15b..0000000
 -end
 -
 diff --git a/synapse.gemspec b/synapse.gemspec
-index d7aff8d..f98bc87 100644
+index 39170d2..5f6b3d0 100644
 --- a/synapse.gemspec
 +++ b/synapse.gemspec
-@@ -16,7 +16,6 @@ Gem::Specification.new do |gem|
+@@ -21,7 +21,6 @@ Gem::Specification.new do |gem|
    gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
    gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
  
 -  gem.add_runtime_dependency "aws-sdk", "~> 1.39"
    gem.add_runtime_dependency "zk", "~> 1.9.4"
    gem.add_runtime_dependency "logging", "~> 1.8"
- 
+   gem.add_runtime_dependency "hashdiff", "~> 0.2.3"

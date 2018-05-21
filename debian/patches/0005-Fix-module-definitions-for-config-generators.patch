@@ -1,0 +1,32 @@
+From: Courtney Wang <courtney.wang@reddit.com>
+Date: Mon, 21 May 2018 09:24:06 -0700
+Subject: Fix module definitions for config generators
+
+Synapse restructured its config generators under
+a ConfigGenerator module. This fixes the references in
+the main Synapse entrypoint to account for the
+new module.
+---
+ lib/synapse.rb | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/lib/synapse.rb b/lib/synapse.rb
+index 985ed2b..9338aa2 100644
+--- a/lib/synapse.rb
++++ b/lib/synapse.rb
+@@ -30,13 +30,13 @@ module Synapse
+ 
+       # possibly create an haproxy config generator
+       if opts.has_key?('haproxy')
+-        @config_generators << Haproxy.new(opts['haproxy'])
++        @config_generators << ConfigGenerator::Haproxy.new(opts['haproxy'])
+       end
+ 
+       # possibly create a file manifestation for services that do not
+       # want to communicate via haproxy, e.g. cassandra
+       if opts.has_key?('file_output')
+-        @config_generators << FileOutput.new(opts['file_output'])
++        @config_generators << ConfigGenerator::FileOutput.new(opts['file_output'])
+       end
+ 
+       # configuration is initially enabled to configure on first loop

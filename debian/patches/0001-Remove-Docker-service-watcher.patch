@@ -4,19 +4,19 @@ Subject: Remove Docker service watcher
 
 We don't need it and it saves us a dependency.
 ---
- README.md                                       |  11 ---
- lib/synapse/service_watcher/docker.rb           |  97 ------------------
- spec/lib/synapse/service_watcher_docker_spec.rb | 126 ------------------------
+ README.md                                       |  11 --
+ lib/synapse/service_watcher/docker.rb           |  97 -----------------
+ spec/lib/synapse/service_watcher_docker_spec.rb | 133 ------------------------
  synapse.gemspec                                 |   1 -
- 4 files changed, 235 deletions(-)
+ 4 files changed, 242 deletions(-)
  delete mode 100644 lib/synapse/service_watcher/docker.rb
  delete mode 100644 spec/lib/synapse/service_watcher_docker_spec.rb
 
 diff --git a/README.md b/README.md
-index 75d3d03..8651366 100644
+index a26617d..154ecc0 100644
 --- a/README.md
 +++ b/README.md
-@@ -180,17 +180,6 @@ If the `method` is `serverset` then we expect to find Finagle ServerSet
+@@ -250,17 +250,6 @@ If the `method` is `serverset` then we expect to find Finagle ServerSet
  (also used by [Aurora](https://github.com/apache/aurora/blob/master/docs/user-guide.md#service-discovery)) registrations with a `serviceEndpoint` and optionally one or more `additionalEndpoints`.
  The Synapse `name` will be automatically deduced from `shard` if present.
  
@@ -139,10 +139,10 @@ index 1cbefc5..0000000
 -end
 diff --git a/spec/lib/synapse/service_watcher_docker_spec.rb b/spec/lib/synapse/service_watcher_docker_spec.rb
 deleted file mode 100644
-index 494a32b..0000000
+index f127948..0000000
 --- a/spec/lib/synapse/service_watcher_docker_spec.rb
 +++ /dev/null
-@@ -1,126 +0,0 @@
+@@ -1,133 +0,0 @@
 -require 'spec_helper'
 -require 'synapse/service_watcher/docker'
 -
@@ -152,7 +152,14 @@ index 494a32b..0000000
 -end
 -
 -describe Synapse::ServiceWatcher::DockerWatcher do
--  let(:mocksynapse) { double() }
+-  let(:mocksynapse) do
+-    mock_synapse = instance_double(Synapse::Synapse)
+-    mockgenerator = Synapse::ConfigGenerator::BaseGenerator.new()
+-    allow(mock_synapse).to receive(:available_generators).and_return({
+-      'haproxy' => mockgenerator
+-    })
+-    mock_synapse
+-  end
 -  subject { Synapse::ServiceWatcher::DockerWatcher.new(testargs, mocksynapse) }
 -  let(:testargs) { { 'name' => 'foo', 'discovery' => { 'method' => 'docker', 'servers' => [{'host' => 'server1.local', 'name' => 'mainserver'}], 'image_name' => 'mycool/image', 'container_port' => 6379 }, 'haproxy' => {} }}
 -  before(:each) do
@@ -270,14 +277,14 @@ index 494a32b..0000000
 -  end
 -end
 diff --git a/synapse.gemspec b/synapse.gemspec
-index a573492..d7aff8d 100644
+index 55a7180..39170d2 100644
 --- a/synapse.gemspec
 +++ b/synapse.gemspec
-@@ -17,7 +17,6 @@ Gem::Specification.new do |gem|
+@@ -22,7 +22,6 @@ Gem::Specification.new do |gem|
    gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
  
    gem.add_runtime_dependency "aws-sdk", "~> 1.39"
 -  gem.add_runtime_dependency "docker-api", "~> 1.7"
    gem.add_runtime_dependency "zk", "~> 1.9.4"
    gem.add_runtime_dependency "logging", "~> 1.8"
- 
+   gem.add_runtime_dependency "hashdiff", "~> 0.2.3"
