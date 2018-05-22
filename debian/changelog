@@ -1,3 +1,9 @@
+synapse (0.16.0-1reddit2) trusty; urgency=medium
+
+  * debian/control - Add ruby-hashdiff to dependency list
+
+ -- Courtney Wang <courtney.wang@reddit.com>  Tue, 22 May 2018 16:20:52 -0700
+
 synapse (0.16.0-1reddit1) trusty; urgency=medium
 
   * Version bump

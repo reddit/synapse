@@ -12,7 +12,7 @@ XS-Ruby-Versions: all
 Package: synapse
 Architecture: all
 XB-Ruby-Versions: ${ruby:Versions}
-Depends: ${shlibs:Depends}, ${misc:Depends}, ruby, ruby-json, ruby-zk, ruby-logging, ruby-dogstatsd
+Depends: ${shlibs:Depends}, ${misc:Depends}, ruby, ruby-json, ruby-zk, ruby-logging, ruby-dogstatsd, ruby-hashdiff
 Description: Service discovery daemon
  Synapse solves the problem of automated fail-over in the cloud, where failover
  via network re-configuration is impossible.
