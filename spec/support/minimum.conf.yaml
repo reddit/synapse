@@ -17,6 +17,9 @@ services:
         - some_haproxy_server_option
       listen:
         - some_haproxy_listen_option
+    envoy:
+      port: 9090
+      bind_address: 'localhost'
 
 # settings for haproxy including the global config
 haproxy:
@@ -33,3 +36,14 @@ haproxy:
 # settings for the file output generator
 file_output:
   output_directory: "/tmp/synapse_file_output_test"
+
+# settings for Envoy
+envoy:
+  reload_command: "sudo service haproxy reload"
+  config_file_path: "/etc/haproxy/haproxy.cfg"
+  do_writes: false
+  do_reloads: false
+  do_socket: false
+  global:
+  defaults:
+

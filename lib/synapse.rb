@@ -33,6 +33,11 @@ module Synapse
         @config_generators << ConfigGenerator::Haproxy.new(opts['haproxy'])
       end
 
+      # possibly create an envoy config generator
+      if opts.has_key?('envoy')
+        @config_generators << ConfigGenerator::Envoy.new(opts['envoy'])
+      end
+
       # possibly create a file manifestation for services that do not
       # want to communicate via haproxy, e.g. cassandra
       if opts.has_key?('file_output')

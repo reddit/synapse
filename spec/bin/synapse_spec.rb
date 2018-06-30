@@ -20,7 +20,10 @@ describe 'parseconfig' do
               {"port" => 3219,
                "bind_address" => "localhost",
                "server_options" => ["some_haproxy_server_option"],
-               "listen" => ["some_haproxy_listen_option"]}}},
+               "listen" => ["some_haproxy_listen_option"]},
+             "envoy" =>
+              {"port" => 9090,
+               "bind_address" => "localhost"}}},
          "haproxy" =>
           {"reload_command" => "sudo service haproxy reload",
            "config_file_path" => "/etc/haproxy/haproxy.cfg",
