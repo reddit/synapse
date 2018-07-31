@@ -1,3 +1,9 @@
+synapse (0.16.0-2reddit1) trusty; urgency=medium
+
+  * patches - Add Envoyproxy config generator
+
+ -- Courtney Wang <courtney.wang@reddit.com>  Mon, 30 Jul 2018 16:20:20 -0700
+
 synapse (0.16.0-1reddit2) trusty; urgency=medium
 
   * debian/control - Add ruby-hashdiff to dependency list
