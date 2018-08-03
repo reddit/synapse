@@ -117,15 +117,7 @@ class Synapse::ConfigGenerator
     end
 
     def update_config(watchers)
-      # if we support updating backends, try that whenever possible
-      #if opts['do_socket']
-#        opts['socket_file_paths'].each do |socket_path|
- #         update_backends_at(socket_path, watchers)
-    #end
-    #else
-      #@restart_required = true
-    #end
-
+      @restart_required = true
       # generate a new config
       new_config = generate_config(watchers)
 
