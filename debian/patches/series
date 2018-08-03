@@ -4,3 +4,4 @@
 0004-Add-reload_command-option-to-file_output.patch
 0005-Fix-module-definitions-for-config-generators.patch
 0006-Add-config-generator-for-Envoy.patch
+0007-Reload-Envoy-on-config-update.patch

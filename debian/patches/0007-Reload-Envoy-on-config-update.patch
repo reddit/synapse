@@ -1,0 +1,29 @@
+From: Courtney Wang <courtney.wang@reddit.com>
+Date: Thu, 2 Aug 2018 17:07:22 -0700
+Subject: Reload Envoy on config update
+
+---
+ lib/synapse/config_generator/envoy.rb | 10 +---------
+ 1 file changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/lib/synapse/config_generator/envoy.rb b/lib/synapse/config_generator/envoy.rb
+index 45bb3d9..3aa2d4d 100644
+--- a/lib/synapse/config_generator/envoy.rb
++++ b/lib/synapse/config_generator/envoy.rb
+@@ -117,15 +117,7 @@ class Synapse::ConfigGenerator
+     end
+ 
+     def update_config(watchers)
+-      # if we support updating backends, try that whenever possible
+-      #if opts['do_socket']
+-#        opts['socket_file_paths'].each do |socket_path|
+- #         update_backends_at(socket_path, watchers)
+-    #end
+-    #else
+-      #@restart_required = true
+-    #end
+-
++      @restart_required = true
+       # generate a new config
+       new_config = generate_config(watchers)
+ 
