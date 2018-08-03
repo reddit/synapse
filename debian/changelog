@@ -1,3 +1,9 @@
+synapse (0.16.0-3reddit1) trusty; urgency=medium
+
+  * patches - Add Envoy reload behavior
+
+ -- Courtney Wang <courtney.wang@reddit.com>  Thu, 2 Aug 2018 16:20:51 -0700
+
 synapse (0.16.0-2reddit1) trusty; urgency=medium
 
   * patches - Add Envoyproxy config generator
