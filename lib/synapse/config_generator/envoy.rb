@@ -49,7 +49,6 @@ class Synapse::ConfigGenerator
       @restart_jitter = @opts.fetch('restart_jitter', 0).to_f
       @restart_required = true
 
-      # TODO HERE: PUT TOGETHER ALL THE HOT RELOAD CONFIGURATIONS
       @reload_command = ""
 
       # virtual clock bookkeeping for controlling how often envoy restarts
@@ -228,12 +227,57 @@ class Synapse::ConfigGenerator
         'idle_timeout' => '60s',
       }
 
+      default_thrift_config = {}
+
       tcp_config = default_tcp_config.merge(filter_configs.fetch('tcp', {}))
+
+      thrift_config = default_thrift_config.merge(filter_configs.fetch('thrift', {}))
+
 
       # Explicit null value passed indicating no port needed
       # For example if the bind_address is a unix port
       # TODO: FIGURE OUT WHAT THIS NEEDS TO BE TO SUPPORT UNIX CONFIGURATION
       bind_port = port.nil? ? '' : "#{port}"
+
+
+      filter_list = []
+
+      # Always enable TCP proxy filter
+      filter_list.push(
+        {
+          'name' => 'envoy.tcp_proxy',
+          'config' => {
+            'stat_prefix' => tcp_config.fetch('stat_prefix', 'ingress_tcp'),
+            'max_connect_attempts' => tcp_config.fetch('max_connect_attempts', 3),
+            'idle_timeout' => tcp_config.fetch('idle_timeout', '60s'),
+            'cluster' => cluster_name,
+            'access_log' => [
+              'name' => 'envoy.file_access_log',
+              'config' => {
+                'path' => '/var/log/envoy.log',
+              }
+            ]
+          }
+        }
+      )
+
+      # If thrift is enabled, enable thrift proxy
+      if not thrift_config.empty?
+        filter_list.push(
+          {
+            'name' => 'envoy.filters.network.thrift_proxy',
+            'config' => {
+              'stat_prefix' => thrift_config.fetch('stat_prefix', 'ingress_thrift'),
+              'access_log'  => [
+                'name' => 'envoy.file_access_log',
+                'config' => {
+                  'path' => '/var/log/envoy.log',
+                }
+              ]
+            }
+          }
+        )
+      end
 
       stanza = {
         'address' => {
@@ -243,23 +287,7 @@ class Synapse::ConfigGenerator
           }
         },
         'filter_chains' => [
-          'filters' => [
-            {
-              'name' => 'envoy.tcp_proxy',
-              'config' => {
-                'stat_prefix' => tcp_config.fetch('stat_prefix', 'ingress_tcp'),
-                'max_connect_attempts' => tcp_config.fetch('max_connect_attempts', 3),
-                'idle_timeout' => tcp_config.fetch('idle_timeout', '60s'),
-                'cluster' => cluster_name,
-                'access_log' => [
-                  'name' => 'envoy.file_access_log',
-                  'config' => {
-                    'path' => '/var/log/envoy.log',
-                  }
-                ]
-              }
-            }
-          ]
+          'filters' => filter_list,
         ]
       }
 
